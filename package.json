@@ -1,0 +1,25 @@
+{
+  "name": "battlegrounds-rank-overlay",
+  "version": "1.0.0",
+  "description": "Hearthstone Battlegrounds leaderboard overlay",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lakshya25/battlegrounds-rank-overlay.git"
+  },
+  "keywords": [
+    "hearthstone",
+    "battlegrounds",
+    "overlay"
+  ],
+  "author": "Lakshya",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/lakshya25/battlegrounds-rank-overlay/issues"
+  },
+  "homepage": "https://github.com/lakshya25/battlegrounds-rank-overlay#readme"
+}
