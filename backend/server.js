@@ -130,7 +130,7 @@ async function loadRegion(region) {
     const text = await response.text();
 
 if (!response.ok) {
-  console.log(region, page, response.status);
+  console.log("CN", page, response.status);
   console.log(text.substring(0, 300));
   throw new Error("Request failed");
 }
