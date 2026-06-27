@@ -122,7 +122,15 @@ async function loadRegion(region) {
       `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`
     );
 
-    const data = await response.json();
+    const text = await response.text();
+
+if (!response.ok) {
+  console.log(region, page, response.status);
+  console.log(text.substring(0, 300));
+  throw new Error("Request failed");
+}
+
+const data = JSON.parse(text);
 
     for (const row of data.leaderboard.rows) {
       players[region][row.accountid.toLowerCase()] = {
@@ -143,7 +151,15 @@ async function loadCNRegion() {
       `https://webapi.blizzard.cn/hs-rank-api-server/api/game/ranks?page=${page}&page_size=25&mode_name=battlegrounds&season_id=18`
     );
 
-    const data = await response.json();
+    const text = await response.text();
+
+if (!response.ok) {
+  console.log("CN", page, response.status);
+  console.log(text.substring(0, 300));
+  throw new Error("Request failed");
+}
+
+const data = JSON.parse(text);
 
     if (!data.data?.list) {
       console.log("CN stopped at page:", page);
