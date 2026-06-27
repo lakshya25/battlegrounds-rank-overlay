@@ -119,8 +119,13 @@ async function loadRegion(region) {
     console.log(`Loading ${region} page:`, page);
 
     const response = await fetch(
-      `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`
-    );
+  `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`,
+  {
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  }
+);
 
     const text = await response.text();
 
@@ -148,8 +153,13 @@ async function loadCNRegion() {
     console.log(`Loading CN page:`, page);
 
     const response = await fetch(
-      `https://webapi.blizzard.cn/hs-rank-api-server/api/game/ranks?page=${page}&page_size=25&mode_name=battlegrounds&season_id=18`
-    );
+  `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`,
+  {
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  }
+);
 
     const text = await response.text();
 
