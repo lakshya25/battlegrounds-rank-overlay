@@ -130,7 +130,7 @@ async function loadRegion(region) {
     const text = await response.text();
 
 if (!response.ok) {
-  console.log("CN", page, response.status);
+  console.log(region, page, response.status);
   console.log(text.substring(0, 300));
   throw new Error("Request failed");
 }
@@ -153,7 +153,7 @@ async function loadCNRegion() {
     console.log(`Loading CN page:`, page);
 
     const response = await fetch(
-  `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`,
+  `https://webapi.blizzard.cn/hs-rank-api-server/api/game/ranks?page=${page}&page_size=25&mode_name=battlegrounds&season_id=18`,
   {
     headers: {
       "User-Agent": "Mozilla/5.0"
