@@ -1,0 +1,102 @@
+body {
+    margin: 0;
+    padding: 20px;
+    background: transparent;
+    font-family: Arial, sans-serif;
+}
+
+.overlay-card {
+    display: inline-block;
+    background: linear-gradient(
+      180deg,
+      rgba(24, 24, 32, 0.97),
+      rgba(12, 12, 18, 0.97)
+    );
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(212, 175, 55, 0.18);
+    box-shadow:
+      0 8px 24px rgba(0,0,0,0.45),
+      0 0 20px rgba(212,175,55,0.05);
+    color: white;
+}
+
+.current-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 10px;
+}
+
+.rank-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rank-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #d4af37;
+}
+
+.rank-number {
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.region {
+    font-size: 14px;
+    font-weight: 600;
+    color: #9a9a9a;
+    text-transform: uppercase;
+    margin-left: -2px;
+    position: relative;
+    top: 1px;
+}
+
+.mmr {
+    font-size: 18px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.3px;
+}
+
+.divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 10px 0;
+}
+
+.session-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.session-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #8a8a8a;
+}
+
+.change {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.separator {
+    color: #666666;
+}
+
+.negative {
+    color: #ff7a7a;
+}
+
+.positive {
+    color: #6bff95;
+}

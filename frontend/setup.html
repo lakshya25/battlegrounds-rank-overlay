@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battlegrounds Overlay Setup</title>
+  <style>
+    :root {
+      --bg: #050505;
+      --panel: rgba(17, 17, 17, 0.95);
+      --panel-border: rgba(212, 175, 55, 0.12);
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --input: #0d0d0d;
+      --input-border: rgba(255, 255, 255, 0.08);
+      --gold: #d4af37;
+      --gold-2: #e5c04d;
+      --success: #86efac;
+      --error: #fca5a5;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+      --radius: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(212, 175, 55, 0.05), transparent 30%),
+        linear-gradient(135deg, #080808, #020202);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 56px;
+    }
+
+    .header {
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(20, 20, 20, 0.96), rgba(10, 10, 10, 0.96));
+      border: 1px solid rgba(212, 175, 55, 0.10);
+      border-radius: var(--radius);
+      box-shadow:
+        0 15px 40px rgba(0, 0, 0, 0.45),
+        0 0 25px rgba(212, 175, 55, 0.03);
+      padding: 24px;
+    }
+
+    .section-title {
+      margin: 0 0 18px;
+      font-size: 18px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #cbd5e1;
+      font-weight: 700;
+    }
+
+    select,
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--input-border);
+      background: var(--input);
+      color: var(--text);
+      outline: none;
+      font-size: 14px;
+    }
+
+    select:focus,
+    input:focus {
+      border-color: rgba(212, 175, 55, 0.8);
+      box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.16);
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .primary {
+      width: 100%;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+      background: linear-gradient(180deg, var(--gold-2), var(--gold));
+      color: #111827;
+    }
+
+    .secondary {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+
+    #message {
+      margin-top: 14px;
+      min-height: 22px;
+      font-weight: 700;
+      color: #cbd5e1;
+    }
+
+    #message.success {
+      color: var(--success);
+    }
+
+    #message.error {
+      color: var(--error);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .result-grid {
+      display: grid;
+      gap: 24px;
+    }
+
+    .preview-frame {
+      display: block;
+      width: 100%;
+      height: 180px;
+      border: none;
+      border-radius: 16px;
+      background: transparent;
+      overflow: hidden;
+      margin-top: 14px;
+    }
+
+    .preview-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .url-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .url-row input {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .url-row button {
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .page {
+        padding: 24px 16px 40px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>Battlegrounds Overlay Setup</h1>
+      <p class="subtitle">
+        Choose a region, enter the BattleTag, generate a live preview, and copy the OBS Browser Source URL.
+      </p>
+    </div>
+
+    <div class="layout">
+      <div class="card">
+        <h2 class="section-title">Create overlay</h2>
+
+        <div id="setupForm">
+          <div class="field">
+            <label for="region">Region</label>
+            <select id="region">
+              <option value="NA">North America</option>
+              <option value="EU">Europe</option>
+              <option value="AP">Asia-Pacific</option>
+              <option value="CN">China</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="account">BattleTag</label>
+            <input
+              type="text"
+              id="account"
+              placeholder="Enter account name"
+              autocomplete="off"
+            />
+          </div>
+
+          <button id="generateButton" class="primary" type="submit">
+            Generate Overlay
+          </button>
+        </div>
+
+        <div id="message"></div>
+      </div>
+
+      <div id="result" class="result-grid hidden">
+        <div class="card">
+          <h2 class="section-title">Overlay Preview</h2>
+          <iframe
+            id="preview"
+            class="preview-frame"
+            scrolling="no"
+          ></iframe>
+          <div class="preview-note">
+            This is the live overlay page using the same URL you can paste into OBS.
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="section-title">OBS Browser Source URL</h2>
+          <div class="url-row">
+            <input
+              type="text"
+              id="overlayUrl"
+              readonly
+            />
+            <button id="copyButton" class="secondary" type="button" disabled>
+              Copy URL
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const regionMap = {
+      NA: "US",
+      EU: "EU",
+      AP: "AP",
+      CN: "CN",
+    };
+
+    const setupForm = document.getElementById("setupForm");
+    const messageEl = document.getElementById("message");
+    const resultEl = document.getElementById("result");
+    const previewEl = document.getElementById("preview");
+    const overlayUrlEl = document.getElementById("overlayUrl");
+    const copyButtonEl = document.getElementById("copyButton");
+    const accountEl = document.getElementById("account");
+
+    function setMessage(text, type = "") {
+      messageEl.textContent = text;
+      messageEl.className = type;
+    }
+
+    function buildOverlayUrl(region, account) {
+      const encodedAccount = encodeURIComponent(account.trim());
+      return `${window.location.origin}/index.html?region=${region}&account=${encodedAccount}`;
+    }
+
+    async function generateOverlay(event) {
+      event.preventDefault();
+
+      const region = document.getElementById("region").value;
+      const accountRaw = accountEl.value;
+      const account = accountRaw.trim();
+
+      if (!account) {
+        setMessage("Enter a BattleTag.", "error");
+        resultEl.classList.add("hidden");
+        copyButtonEl.disabled = true;
+        return;
+      }
+
+      const apiRegion = regionMap[region] || region;
+
+      setMessage("Checking player...", "");
+
+      try {
+        const response = await fetch(
+          `http://localhost:3000/player?region=${apiRegion}&account=${encodeURIComponent(account)}`
+        );
+
+        if (!response.ok) {
+          setMessage("Player not found.", "error");
+          resultEl.classList.add("hidden");
+          copyButtonEl.disabled = true;
+          return;
+        }
+
+        const overlayUrl = buildOverlayUrl(region, account);
+        const previewUrl = `${overlayUrl}&preview=${Date.now()}`;
+
+        overlayUrlEl.value = overlayUrl;
+        resultEl.classList.remove("hidden");
+
+        previewEl.src = "about:blank";
+        previewEl.src = previewUrl;
+
+        copyButtonEl.disabled = false;
+        setMessage("Player found.", "success");
+
+        copyButtonEl.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(overlayUrl);
+            const oldText = copyButtonEl.textContent;
+            copyButtonEl.textContent = "Copied";
+            setTimeout(() => {
+              copyButtonEl.textContent = oldText;
+            }, 1200);
+          } catch {
+            setMessage("Copy failed.", "error");
+          }
+        };
+      } catch (error) {
+        console.error(error);
+        setMessage("Could not reach the backend.", "error");
+        resultEl.classList.add("hidden");
+        copyButtonEl.disabled = true;
+      }
+    }
+
+    document
+  .getElementById("generateButton")
+  .addEventListener("click", generateOverlay);
+
+    accountEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        generateOverlay(event);
+      }
+    });
+  </script>
+</body>
+</html>

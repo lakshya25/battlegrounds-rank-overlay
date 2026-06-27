@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BG Overlay</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="overlay-card">
+
+    <div class="current-row">
+
+      <div class="rank-group">
+        <span class="rank-label">RANK</span>
+        <span id="rank" class="rank-number"></span>
+        <span id="region" class="region"></span>
+      </div>
+
+      <div id="mmr" class="mmr"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="session-row">
+      <span class="session-label">SESSION</span>
+      <span id="session-rank" class="change negative"></span>
+      <span class="separator">|</span>
+      <span id="session-mmr" class="change negative"></span>
+    </div>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
