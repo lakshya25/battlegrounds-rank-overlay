@@ -2,20 +2,12 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = path.join(__dirname, "..", "frontend");
 const SESSION_FILE = path.join(__dirname, "data", "sessions.json");
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 30 * 1000;
 const DEV_MODE = false;
-
-const players = {
-  EU: {},
-  US: {},
-  AP: {},
-  CN: {}
-};
-
-const sessions = {};
-let lastUpdated = null;
 
 const CONTENT_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -29,18 +21,38 @@ const CONTENT_TYPES = {
   ".svg": "image/svg+xml"
 };
 
+const players = {
+  EU: Object.create(null),
+  US: Object.create(null),
+  AP: Object.create(null),
+  CN: Object.create(null)
+};
+
+const sessions = Object.create(null);
+let lastUpdated = null;
+let refreshRunning = false;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function saveSessions() {
-  fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
-  fs.writeFileSync(
-    SESSION_FILE,
-    JSON.stringify(sessions, null, 2)
-  );
+  try {
+    fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(sessions, null, 2));
+  } catch (error) {
+    console.error("Failed to save sessions:", error.message);
+  }
 }
 
 function cleanupSessions() {
   const SIX_HOURS = 6 * 60 * 60 * 1000;
-  let removed = 0;
   const now = Date.now();
+  let removed = 0;
 
   for (const sessionKey of Object.keys(sessions)) {
     const session = sessions[sessionKey];
@@ -50,7 +62,7 @@ function cleanupSessions() {
 
     if (now - session.lastSeen > SIX_HOURS) {
       delete sessions[sessionKey];
-      removed++;
+      removed += 1;
     }
   }
 
@@ -86,103 +98,276 @@ function loadSessions() {
   }
 }
 
-async function loadLeaderboard() {
-  const startTime = Date.now();
+function makeHeaders() {
+  return {
+    "User-Agent": "Mozilla/5.0"
+  };
+}
 
-  await Promise.all([
-    loadRegion("EU"),
-    loadRegion("US"),
-    loadRegion("AP"),
-    loadCNRegion()
+async function fetchTextWithTimeout(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      headers: makeHeaders(),
+      signal: controller.signal
+    });
+
+    const text = await response.text();
+    return { response, text };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchJson(url) {
+  const { response, text } = await fetchTextWithTimeout(url);
+
+  if (!response.ok) {
+    const preview = text ? text.slice(0, 300) : "";
+    const error = new Error(`HTTP ${response.status}`);
+    error.status = response.status;
+    error.body = preview;
+    throw error;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const parseError = new Error("Invalid JSON");
+    parseError.cause = error;
+    throw parseError;
+  }
+}
+
+async function retry(fn, label, tries = 3, delayMs = 3000, backoff = 2) {
+  let lastError = null;
+  let currentDelay = delayMs;
+
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < tries) {
+        console.warn(
+          `${label} failed (attempt ${attempt}/${tries}): ${error.message}. Retrying in ${currentDelay}ms`
+        );
+        await sleep(currentDelay);
+        currentDelay *= backoff;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function buildRegionUrl(region, page) {
+  return `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`;
+}
+
+function buildCNUrl(page, seasonId) {
+  return `https://webapi.blizzard.cn/hs-rank-api-server/api/game/ranks?page=${page}&page_size=25&mode_name=battlegrounds&season_id=${seasonId}`;
+}
+
+async function fetchRegionPage(region, page) {
+  const url = buildRegionUrl(region, page);
+  return retry(
+    () => fetchJson(url),
+    `${region} page ${page}`
+  );
+}
+
+async function fetchCNPage(page, seasonId) {
+  const url = buildCNUrl(page, seasonId);
+  return retry(
+    async () => {
+      const data = await fetchJson(url);
+      if (data && typeof data === "object" && data.code !== 0) {
+        throw new Error(`API code ${data.code}`);
+      }
+      return data;
+    },
+    `CN page ${page}`
+  );
+}
+
+async function updateRegion(region) {
+  const startedAt = Date.now();
+  try {
+    console.log(`Refreshing ${region} leaderboard...`);
+
+    const firstPage = await fetchRegionPage(region, 1);
+    const totalPagesRaw = firstPage?.leaderboard?.pagination?.totalPages;
+    const totalPages = Number.isFinite(Number(totalPagesRaw))
+      ? Number(totalPagesRaw)
+      : 166;
+
+    const collectedRows = [];
+    const firstRows = Array.isArray(firstPage?.leaderboard?.rows)
+      ? firstPage.leaderboard.rows
+      : [];
+    collectedRows.push(...firstRows);
+
+    const pageTasks = [];
+    for (let page = 2; page <= totalPages; page += 1) {
+      pageTasks.push(
+        fetchRegionPage(region, page)
+          .then((data) => ({
+            page,
+            rows: Array.isArray(data?.leaderboard?.rows) ? data.leaderboard.rows : []
+          }))
+          .catch((error) => {
+            console.error(`${region} page ${page} failed:`, error.message);
+            return { page, rows: [] };
+          })
+      );
+    }
+
+    const pageResults = await Promise.all(pageTasks);
+    pageResults.sort((a, b) => a.page - b.page);
+
+    for (const result of pageResults) {
+      collectedRows.push(...result.rows);
+    }
+
+    const nextPlayers = Object.create(null);
+
+    for (const row of collectedRows) {
+      const accountId = normalizeName(row?.accountid);
+      if (!accountId) {
+        continue;
+      }
+
+      nextPlayers[accountId] = {
+        rank: Number(row?.rank) || 0,
+        rating: Number(row?.rating) || 0
+      };
+    }
+
+    players[region] = nextPlayers;
+    console.log(`${region} Players:`, Object.keys(players[region]).length);
+    console.log(
+      `${region} update complete in`,
+      Math.round((Date.now() - startedAt) / 1000),
+      "seconds"
+    );
+  } catch (error) {
+    console.error(`${region} update failed:`, error.message);
+  }
+}
+
+async function updateCNRegion() {
+  const startedAt = Date.now();
+  try {
+    console.log("Refreshing CN leaderboard...");
+
+    const apFirstPage = await fetchRegionPage("AP", 1);
+    const seasonId = apFirstPage?.seasonId;
+    if (seasonId === undefined || seasonId === null) {
+      throw new Error("seasonId not found");
+    }
+
+    const firstPage = await fetchCNPage(1, seasonId);
+    const total = Number(firstPage?.data?.total) || 0;
+    const totalPages = Math.max(1, Math.ceil(total / 25));
+
+    const collectedRows = [];
+    const firstRows = Array.isArray(firstPage?.data?.list) ? firstPage.data.list : [];
+    collectedRows.push(...firstRows);
+
+    const pageTasks = [];
+    for (let page = 2; page <= totalPages; page += 1) {
+      pageTasks.push(
+        fetchCNPage(page, seasonId)
+          .then((data) => ({
+            page,
+            rows: Array.isArray(data?.data?.list) ? data.data.list : []
+          }))
+          .catch((error) => {
+            console.error(`CN page ${page} failed:`, error.message);
+            return { page, rows: [] };
+          })
+      );
+    }
+
+    const pageResults = await Promise.all(pageTasks);
+    pageResults.sort((a, b) => a.page - b.page);
+
+    for (const result of pageResults) {
+      collectedRows.push(...result.rows);
+    }
+
+    const nextPlayers = Object.create(null);
+
+    for (const row of collectedRows) {
+      const accountId = normalizeName(row?.battle_tag);
+      if (!accountId) {
+        continue;
+      }
+
+      nextPlayers[accountId] = {
+        rank: Number(row?.position) || 0,
+        rating: Number(row?.score) || 0
+      };
+    }
+
+    players.CN = nextPlayers;
+    console.log("CN Players:", Object.keys(players.CN).length);
+    console.log(
+      "CN update complete in",
+      Math.round((Date.now() - startedAt) / 1000),
+      "seconds"
+    );
+  } catch (error) {
+    console.error("CN update failed:", error.message);
+  }
+}
+
+async function refreshAllLeaderboards() {
+  const startedAt = Date.now();
+
+  await Promise.allSettled([
+    updateRegion("EU"),
+    updateRegion("US"),
+    updateRegion("AP"),
+    updateCNRegion()
   ]);
 
-  console.log("EU Players:", Object.keys(players.EU).length);
-  console.log("US Players:", Object.keys(players.US).length);
-  console.log("AP Players:", Object.keys(players.AP).length);
-  console.log("CN Players:", Object.keys(players.CN).length);
-
   cleanupSessions();
-
   lastUpdated = new Date();
-  console.log("Updated:", lastUpdated);
+
+  console.log("Updated:", lastUpdated.toISOString());
   console.log(
-    "Load time:",
-    Math.round((Date.now() - startTime) / 1000),
+    "Refresh cycle finished in",
+    Math.round((Date.now() - startedAt) / 1000),
     "seconds"
   );
 }
 
-async function loadRegion(region) {
-  const maxPages = DEV_MODE ? 2 : 166;
-
-  for (let page = 1; page <= maxPages; page++) {
-    console.log(`Loading ${region} page:`, page);
-
-    const response = await fetch(
-  `https://hearthstone.blizzard.com/en-us/api/community/leaderboardsData?region=${region}&leaderboardId=battlegrounds&page=${page}`,
-  {
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
+function runRefreshCycle() {
+  if (refreshRunning) {
+    console.log("Refresh already running, skipping tick");
+    return;
   }
-);
 
-    const text = await response.text();
-
-if (!response.ok) {
-  console.log(region, page, response.status);
-  console.log(text.substring(0, 300));
-  throw new Error("Request failed");
+  refreshRunning = true;
+  void (async () => {
+    try {
+      await refreshAllLeaderboards();
+    } catch (error) {
+      console.error("Unexpected refresh failure:", error.message);
+    } finally {
+      refreshRunning = false;
+    }
+  })();
 }
 
-const data = JSON.parse(text);
-
-    for (const row of data.leaderboard.rows) {
-      players[region][row.accountid.toLowerCase()] = {
-        rank: row.rank,
-        rating: row.rating
-      };
-    }
-  }
-}
-
-async function loadCNRegion() {
-  const maxPages = DEV_MODE ? 2 : 166;
-
-  for (let page = 1; page <= maxPages; page++) {
-    console.log(`Loading CN page:`, page);
-
-    const response = await fetch(
-  `https://webapi.blizzard.cn/hs-rank-api-server/api/game/ranks?page=${page}&page_size=25&mode_name=battlegrounds&season_id=18`,
-  {
-    headers: {
-      "User-Agent": "Mozilla/5.0"
-    }
-  }
-);
-
-    const text = await response.text();
-
-if (!response.ok) {
-  console.log("CN", page, response.status);
-  console.log(text.substring(0, 300));
-  throw new Error("Request failed");
-}
-
-const data = JSON.parse(text);
-
-    if (!data.data?.list) {
-      console.log("CN stopped at page:", page);
-      break;
-    }
-
-    for (const row of data.data.list) {
-      players.CN[row.battle_tag.toLowerCase()] = {
-        rank: row.position,
-        rating: row.score
-      };
-    }
-  }
+function startRefreshScheduler() {
+  runRefreshCycle();
+  setInterval(runRefreshCycle, REFRESH_INTERVAL_MS);
 }
 
 function serveStaticFile(requestPath, response) {
@@ -222,15 +407,19 @@ function serveStaticFile(requestPath, response) {
   });
 }
 
-const server = http.createServer(async (request, response) => {
-  const url = new URL(
-    request.url,
-    `http://${request.headers.host || "localhost"}`
-  );
+const server = http.createServer((request, response) => {
+  let url;
+  try {
+    url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+  } catch (error) {
+    response.statusCode = 400;
+    response.end("Bad Request");
+    return;
+  }
 
   if (url.pathname === "/player") {
-    const accountName = (url.searchParams.get("account") || "lagshya").toLowerCase();
-    const region = url.searchParams.get("region") || "EU";
+    const accountName = normalizeName(url.searchParams.get("account") || "lagshya");
+    const region = String(url.searchParams.get("region") || "EU").toUpperCase();
     const player = players[region]?.[accountName];
 
     response.setHeader("Access-Control-Allow-Origin", "*");
@@ -251,16 +440,17 @@ const server = http.createServer(async (request, response) => {
       }
 
       const session = sessions[sessionKey];
-
       session.lastSeen = Date.now();
       saveSessions();
 
-      response.end(JSON.stringify({
-        rank: player.rank,
-        rating: player.rating,
-        sessionRankChange: session.startRank - player.rank,
-        sessionMMRChange: player.rating - session.startMMR
-      }));
+      response.end(
+        JSON.stringify({
+          rank: player.rank,
+          rating: player.rating,
+          sessionRankChange: session.startRank - player.rank,
+          sessionMMRChange: player.rating - session.startMMR
+        })
+      );
       return;
     }
 
@@ -272,22 +462,15 @@ const server = http.createServer(async (request, response) => {
   serveStaticFile(url.pathname, response);
 });
 
-async function startServer() {
+function startServer() {
   loadSessions();
-  await loadLeaderboard();
-
-  setInterval(() => {
-    console.log("Refreshing cache...");
-    loadLeaderboard();
-  }, 15 * 60 * 1000);
 
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Open http://localhost:${PORT}/setup.html`);
   });
+
+  startRefreshScheduler();
 }
 
-startServer().catch((error) => {
-  console.error("Fatal startup error:", error);
-  process.exit(1);
-});
+startServer();
