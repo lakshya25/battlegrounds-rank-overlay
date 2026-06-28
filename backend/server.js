@@ -327,6 +327,8 @@ async function updateCNRegion() {
 }
 
 async function refreshAllLeaderboards() {
+  console.log("=== Refresh started ===", new Date().toISOString());
+
   const startedAt = Date.now();
 
   await Promise.allSettled([
@@ -345,6 +347,7 @@ async function refreshAllLeaderboards() {
     Math.round((Date.now() - startedAt) / 1000),
     "seconds"
   );
+  console.log("=== Refresh ended ===", new Date().toISOString());
 }
 
 function runRefreshCycle() {
