@@ -65,7 +65,7 @@ const region =
 const account =
   url.searchParams.get("account") || "lagshya";
 const response = await fetch(
-  `http://localhost:3000/player?region=${apiRegion}&account=${account}`
+  `/player?region=${apiRegion}&account=${account}`
 );
 console.log(response.status);
 const player = await response.json();
