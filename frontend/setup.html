@@ -334,8 +334,8 @@
 
       try {
         const response = await fetch(
-          `http://localhost:3000/player?region=${apiRegion}&account=${encodeURIComponent(account)}`
-        );
+  `/player?region=${apiRegion}&account=${encodeURIComponent(account)}`
+);
 
         if (!response.ok) {
           setMessage("Player not found.", "error");
