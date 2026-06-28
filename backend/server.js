@@ -44,6 +44,13 @@ function saveSessions() {
   try {
     fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
     fs.writeFileSync(SESSION_FILE, JSON.stringify(sessions, null, 2));
+
+    console.log(
+      "Saved",
+      Object.keys(sessions).length,
+      "sessions to",
+      SESSION_FILE
+    );
   } catch (error) {
     console.error("Failed to save sessions:", error.message);
   }
