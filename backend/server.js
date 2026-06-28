@@ -5,7 +5,7 @@ const path = require("path");
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = path.join(__dirname, "..", "frontend");
 const SESSION_FILE = path.join(__dirname, "data", "sessions.json");
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 30 * 1000;
 const DEV_MODE = false;
 
